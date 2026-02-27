@@ -1,0 +1,119 @@
+execute:
+  name: Execute Action
+  description: Execute a smart action by its ID
+  fields:
+    action_id:
+      name: Action ID
+      description: The ID of the smart action to execute
+      required: true
+      example: "bedtime_lights"
+      selector:
+        text:
+
+reload:
+  name: Reload
+  description: Reload smart actions from YAML configuration
+
+add_action:
+  name: Add Action
+  description: Add or update a smart action via service call
+  fields:
+    id:
+      name: ID
+      description: Unique identifier for the action
+      required: true
+      example: "movie_mode"
+      selector:
+        text:
+    name:
+      name: Name
+      description: Display name
+      required: true
+      example: "Movie Mode"
+      selector:
+        text:
+    icon:
+      name: Icon
+      description: MDI icon
+      required: false
+      example: "mdi:filmstrip"
+      selector:
+        icon:
+    color:
+      name: Color
+      description: Color name for the card
+      required: false
+      example: "red"
+      selector:
+        text:
+    description:
+      name: Description
+      description: Short description shown on the card
+      required: false
+      example: "Turn off lights and start the TV"
+      selector:
+        text:
+    confirm:
+      name: Require Confirmation
+      description: Whether to show a confirmation popup
+      required: false
+      default: false
+      selector:
+        boolean:
+    priority:
+      name: Priority
+      description: Sort order (lower = higher priority)
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+    users:
+      name: Users
+      description: List of person entity IDs who can see this action (empty = all)
+      required: false
+      example: '["person.alex", "person.partner"]'
+      selector:
+        object:
+    conditions:
+      name: Conditions
+      description: List of conditions that must be met
+      required: false
+      selector:
+        object:
+    action:
+      name: Action
+      description: Service call configuration
+      required: false
+      selector:
+        object:
+
+remove_action:
+  name: Remove Action
+  description: Remove a smart action by its ID
+  fields:
+    action_id:
+      name: Action ID
+      description: The ID of the smart action to remove
+      required: true
+      example: "bedtime_lights"
+      selector:
+        text:
+
+set_enabled:
+  name: Enable/Disable Action
+  description: Enable or disable a smart action without removing it
+  fields:
+    action_id:
+      name: Action ID
+      description: The ID of the smart action
+      required: true
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      description: Whether the action should be enabled
+      required: true
+      selector:
+        boolean:

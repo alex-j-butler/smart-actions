@@ -1,0 +1,29 @@
+# https://www.home-assistant.io/integrations/default_config/
+default_config:
+
+# https://www.home-assistant.io/integrations/homeassistant/
+homeassistant:
+  debug: true
+
+# https://www.home-assistant.io/integrations/logger/
+logger:
+  default: info
+  logs:
+    custom_components.integration_blueprint: debug
+
+
+smart_actions:
+  actions:
+    # ── Bedtime lights ──
+    - id: bedtime_lights
+      name: Bedtime Lights
+      icon: mdi:bed-clock
+      color: deep-purple
+      description: Turn off downstairs lights
+      priority: 10
+      conditions:
+        - condition: state
+          entity_id: input_boolean.bool_bedtime_lights
+          state: "on"
+      action:
+        service: script.bedtime_lights
