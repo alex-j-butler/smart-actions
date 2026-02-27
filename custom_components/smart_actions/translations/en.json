@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Smart Actions",
+        "description": "Set up the Smart Actions integration to manage contextual quick actions on your dashboard.",
+        "data": {}
+      }
+    },
+    "abort": {
+      "already_configured": "Smart Actions is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Smart Actions",
+        "menu_options": {
+          "add_action": "Add a new action",
+          "remove_action": "Remove an action"
+        }
+      },
+      "add_action": {
+        "title": "Add Smart Action",
+        "description": "Create a new smart action. Conditions and service calls can be configured in YAML or via the smart_actions.add_action service.",
+        "data": {
+          "id": "Action ID (unique, no spaces)",
+          "name": "Display Name",
+          "icon": "Icon (mdi:icon-name)",
+          "color": "Color",
+          "description": "Description",
+          "confirm": "Require confirmation",
+          "priority": "Priority (0-100, lower = shown first)",
+          "users": "Allowed users (comma-separated person entity IDs, empty = all)"
+        }
+      },
+      "remove_action": {
+        "title": "Remove Smart Action",
+        "data": {
+          "action_id": "Action to remove"
+        }
+      }
+    },
+    "abort": {
+      "no_actions": "No actions to remove."
+    }
+  }
+}
