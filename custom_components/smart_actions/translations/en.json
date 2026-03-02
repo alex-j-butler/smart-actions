@@ -17,6 +17,7 @@
         "title": "Smart Actions",
         "menu_options": {
           "add_action": "Add a new action",
+          "edit_action_picker": "Edit an action",
           "remove_action": "Remove an action"
         }
       },
@@ -31,7 +32,27 @@
           "description": "Description",
           "confirm": "Require confirmation",
           "priority": "Priority (0-100, lower = shown first)",
-          "users": "Allowed users (comma-separated person entity IDs, empty = all)"
+          "users": "Allowed users (comma-separated person entity IDs, empty = all)",
+          "conditions": "Condition of whether to show this smart action on the dashboard",
+          "tap_action": "Action to run when the action is clicked on the dashboard",
+          "icon_tap_action": "Action to run when the action icon is clicked on the dashboard"
+        }
+      },
+      "edit_action": {
+        "title": "Edit Smart Action",
+        "description": "Edit a smart action.",
+        "data": {
+          "id": "Action ID (unique, no spaces)",
+          "name": "Display Name",
+          "icon": "Icon (mdi:icon-name)",
+          "color": "Color",
+          "description": "Description",
+          "confirm": "Require confirmation",
+          "priority": "Priority (0-100, lower = shown first)",
+          "users": "Allowed users (comma-separated person entity IDs, empty = all)",
+          "conditions": "Condition of whether to show this smart action on the dashboard",
+          "tap_action": "Action to run when the action is clicked on the dashboard",
+          "icon_tap_action": "Action to run when the action icon is clicked on the dashboard"
         }
       },
       "remove_action": {

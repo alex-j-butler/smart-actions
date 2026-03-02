@@ -1,4 +1,5 @@
 """Smart Actions integration for Home Assistant."""
+
 from __future__ import annotations
 
 import logging
@@ -36,6 +37,8 @@ ACTION_SCHEMA = vol.Schema(
         vol.Optional("conditions", default=[]): list,
         vol.Optional("users", default=[]): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional("action", default={}): dict,
+        vol.Optional("tap_action", default={}): dict,
+        vol.Optional("icon_tap_action", default={}): dict,
     }
 )
 

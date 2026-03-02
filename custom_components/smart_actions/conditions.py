@@ -1,4 +1,5 @@
 """Condition evaluation for Smart Actions."""
+
 from __future__ import annotations
 
 import logging
@@ -6,14 +7,46 @@ from datetime import datetime, time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.condition import (
+    async_from_config,
+    async_validate_conditions_config,
+)
 from homeassistant.helpers.template import Template
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def evaluate_conditions(
-    hass: HomeAssistant, conditions: list[dict[str, Any]]
+async def async_evaluate_conditions(
+    hass: HomeAssistant, conditions: list[dict]
 ) -> bool:
+    """Evaluate conditions using HA's built-in condition engine."""
+    if not conditions:
+        return True
+
+    try:
+        # Validate the condition configs first
+        validated = await async_validate_conditions_config(hass, conditions)
+
+        # Build a combined AND test from all conditions
+        # async_from_config returns a ConditionCheckerType callable
+        test_funcs = []
+        for conf in validated:
+            test = await async_from_config(hass, conf)
+            test_funcs.append(test)
+
+        # Evaluate all (AND logic)
+        for test in test_funcs:
+            if not test(hass):
+                return False
+        return True
+
+    except Exception:
+        _LOGGER.exception("Error evaluating conditions")
+        return False
+
+
+def evaluate_conditions(hass: HomeAssistant, conditions: list[dict[str, Any]]) -> bool:
     """Evaluate a list of conditions. All must be true (AND logic)."""
     if not conditions:
         return True
@@ -24,9 +57,7 @@ def evaluate_conditions(
     return True
 
 
-def _evaluate_single_condition(
-    hass: HomeAssistant, condition: dict[str, Any]
-) -> bool:
+def _evaluate_single_condition(hass: HomeAssistant, condition: dict[str, Any]) -> bool:
     """Evaluate a single condition."""
     cond_type = condition.get("condition", "state")
 
@@ -53,9 +84,7 @@ def _evaluate_single_condition(
         return False
 
 
-def _eval_state_condition(
-    hass: HomeAssistant, condition: dict[str, Any]
-) -> bool:
+def _eval_state_condition(hass: HomeAssistant, condition: dict[str, Any]) -> bool:
     """Evaluate a state condition."""
     entity_id = condition.get("entity_id")
     if not entity_id:
@@ -116,9 +145,7 @@ def _eval_numeric_state_condition(
     return True
 
 
-def _eval_time_condition(
-    hass: HomeAssistant, condition: dict[str, Any]
-) -> bool:
+def _eval_time_condition(hass: HomeAssistant, condition: dict[str, Any]) -> bool:
     """Evaluate a time condition."""
     now = datetime.now().time()
 
@@ -152,9 +179,7 @@ def _parse_time(time_str: str) -> time:
     return time(int(parts[0]), int(parts[1]), int(parts[2]))
 
 
-def _eval_template_condition(
-    hass: HomeAssistant, condition: dict[str, Any]
-) -> bool:
+def _eval_template_condition(hass: HomeAssistant, condition: dict[str, Any]) -> bool:
     """Evaluate a template condition."""
     value_template = condition.get("value_template")
     if not value_template:
@@ -167,25 +192,19 @@ def _eval_template_condition(
     return str(result).lower() in ("true", "1", "yes", "on")
 
 
-def _eval_or_condition(
-    hass: HomeAssistant, condition: dict[str, Any]
-) -> bool:
+def _eval_or_condition(hass: HomeAssistant, condition: dict[str, Any]) -> bool:
     """Evaluate an OR condition group."""
     conditions = condition.get("conditions", [])
     return any(_evaluate_single_condition(hass, c) for c in conditions)
 
 
-def _eval_and_condition(
-    hass: HomeAssistant, condition: dict[str, Any]
-) -> bool:
+def _eval_and_condition(hass: HomeAssistant, condition: dict[str, Any]) -> bool:
     """Evaluate an AND condition group."""
     conditions = condition.get("conditions", [])
     return all(_evaluate_single_condition(hass, c) for c in conditions)
 
 
-def _eval_not_condition(
-    hass: HomeAssistant, condition: dict[str, Any]
-) -> bool:
+def _eval_not_condition(hass: HomeAssistant, condition: dict[str, Any]) -> bool:
     """Evaluate a NOT condition group."""
     conditions = condition.get("conditions", [])
     return not any(_evaluate_single_condition(hass, c) for c in conditions)

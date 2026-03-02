@@ -1,4 +1,5 @@
 """Coordinator for Smart Actions."""
+
 from __future__ import annotations
 
 import logging
@@ -6,11 +7,14 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_time_interval, async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_track_time_interval,
+    async_track_state_change_event,
+)
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, EVENT_ACTION_STATE_CHANGED
-from .conditions import evaluate_conditions
+from .conditions import async_evaluate_conditions, evaluate_conditions
 from .model import SmartAction
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,7 +74,8 @@ class SmartActionsCoordinator:
     async def async_save(self) -> None:
         """Save UI-defined actions to storage."""
         ui_actions = [
-            a.to_dict() | {
+            a.to_dict()
+            | {
                 "conditions": a.conditions,
                 "action": a.action,
             }
@@ -146,7 +151,9 @@ class SmartActionsCoordinator:
             return False
 
         domain, service_name = service.split(".", 1)
-        service_data = service_config.get("data", service_config.get("service_data", {}))
+        service_data = service_config.get(
+            "data", service_config.get("service_data", {})
+        )
         target = service_config.get("target", {})
 
         try:
@@ -243,7 +250,9 @@ class SmartActionsCoordinator:
         changed = False
         for action in self._actions.values():
             was_active = action.active
-            action.active = evaluate_conditions(self.hass, action.conditions)
+            action.active = await async_evaluate_conditions(
+                self.hass, action.conditions
+            )
             if action.active != was_active:
                 changed = True
                 _LOGGER.debug(
@@ -276,7 +285,8 @@ class SmartActionsCoordinator:
 
         # Remove old YAML actions
         to_remove = [
-            aid for aid, a in self._actions.items()
+            aid
+            for aid, a in self._actions.items()
             if a.source == "yaml" and aid not in yaml_ids
         ]
         for aid in to_remove:
