@@ -34,6 +34,31 @@ from custom_components.smart_actions.model import SmartAction
 from .const import DOMAIN
 
 
+def action_to_schema(action: dict[str, Any] | None):
+    schema = {}
+    if action is None:
+        return None
+    if action["action"] == "perform-action":
+        schema = {
+            "tap_action_type": "perform-action",
+            "tap_action_service": {
+                "tap_action_service": [
+                    {
+                        "action": action["perform_action"],
+                        "target": action["target"],
+                    }
+                ]
+            },
+        }
+    if action["action"] == "more-info":
+        schema = {
+            "tap_action_type": "more-info",
+            "tap_action_entity": {"tap_action_entity": action["entity"]},
+        }
+
+    return schema
+
+
 def get_smart_action_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     defaults = defaults or {}
     return vol.Schema(
@@ -44,26 +69,44 @@ def get_smart_action_schema(defaults: dict[str, Any] | None = None) -> vol.Schem
             vol.Optional("color", default="primary"): str,
             vol.Optional("description", default=""): str,
             vol.Required("conditions"): ConditionSelector(),
-            vol.Required("tap_action_section"): section(
+            vol.Optional("tap_action_type"): SelectSelector(
+                SelectSelectorConfig(
+                    options=[
+                        {
+                            "value": "perform-action",
+                            "label": "Call a service",
+                        },
+                        {"value": "navigate", "label": "Navigate"},
+                        {"value": "more-info", "label": "More info"},
+                        {"value": "url", "label": "Open URL"},
+                    ],
+                    mode=SelectSelectorMode.DROPDOWN,
+                ),
+            ),
+            vol.Required("tap_action_service"): section(
                 vol.Schema(
                     {
-                        vol.Optional("tap_action_type"): SelectSelector(
-                            SelectSelectorConfig(
-                                options=[
-                                    {
-                                        "value": "perform-action",
-                                        "label": "Call a service",
-                                    },
-                                    {"value": "navigate", "label": "Navigate"},
-                                    {"value": "more-info", "label": "More info"},
-                                    {"value": "url", "label": "Open URL"},
-                                ],
-                                mode=SelectSelectorMode.DROPDOWN,
-                            ),
-                        ),
                         vol.Optional("tap_action_service"): ActionSelector(),
+                    }
+                )
+            ),
+            vol.Required("tap_action_navigate"): section(
+                vol.Schema(
+                    {
                         vol.Optional("tap_action_navigation_path"): TextSelector(),
+                    }
+                )
+            ),
+            vol.Required("tap_action_entity"): section(
+                vol.Schema(
+                    {
                         vol.Optional("tap_action_entity"): EntitySelector(),
+                    }
+                )
+            ),
+            vol.Required("tap_action_url"): section(
+                vol.Schema(
+                    {
                         vol.Optional("tap_action_url"): TextSelector(
                             TextSelectorConfig(type=TextSelectorType.URL)
                         ),
@@ -145,25 +188,20 @@ class SmartActionsOptionsFlow(OptionsFlow):
                 users = [u.strip() for u in user_input["users"].split(",") if u.strip()]
 
             tap_action = {}
-            if "tap_action_section" in user_input:
-                tap_action_section = user_input["tap_action_section"]
+            # Perform action
+            if user_input["tap_action_type"] == "perform-action":
+                service = user_input["tap_action_service"].get("tap_action_service")[0]
                 tap_action = {
-                    "action": tap_action_section.get("tap_action_type"),
-                    # Perform action
-                    "perform_action": tap_action_section.get("tap_action_service")[
-                        0
-                    ].get("action"),
-                    "target": tap_action_section.get("tap_action_service")[0].get(
-                        "target"
-                    ),
-                    "data": tap_action_section.get("tap_action_service")[0].get("data"),
-                    # Others
-                    "navigation_path": tap_action_section.get(
-                        "tap_action_navigation_path"
-                    ),
-                    "entity": tap_action_section.get("tap_action_entity"),
-                    "url": tap_action_section.get("tap_action_url"),
+                    "action": "perform-action",
+                    "perform_action": service.get("action"),
+                    "target": service.get("target"),
+                    "data": service.get("data"),
                 }
+            if user_input["tap_action_type"] == "more-info":
+                entity = user_input["tap_action_entity"].get("tap_action_entity")
+                tap_action = {"entity": entity}
+
+            print("add: ", tap_action)
 
             config = {
                 "id": user_input["id"],
@@ -194,32 +232,24 @@ class SmartActionsOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         coordinator: SmartActionsCoordinator = self.hass.data[DOMAIN]["coordinator"]
         if user_input is not None:
-            print(user_input["tap_action_section"])
             # Parse users from comma-separated string
             users = []
             if user_input.get("users"):
                 users = [u.strip() for u in user_input["users"].split(",") if u.strip()]
 
             tap_action = {}
-            if "tap_action_section" in user_input:
-                tap_action_section = user_input["tap_action_section"]
+            # Perform action
+            if user_input["tap_action_type"] == "perform-action":
+                service = user_input["tap_action_service"].get("tap_action_service")[0]
                 tap_action = {
-                    "action": tap_action_section.get("tap_action_type"),
-                    # Perform action
-                    "perform_action": tap_action_section.get("tap_action_service")[
-                        0
-                    ].get("action"),
-                    "target": tap_action_section.get("tap_action_service")[0].get(
-                        "target"
-                    ),
-                    "data": tap_action_section.get("tap_action_service")[0].get("data"),
-                    # Others
-                    "navigation_path": tap_action_section.get(
-                        "tap_action_navigation_path"
-                    ),
-                    "entity": tap_action_section.get("tap_action_entity"),
-                    "url": tap_action_section.get("tap_action_url"),
+                    "action": "perform-action",
+                    "perform_action": service.get("action"),
+                    "target": service.get("target"),
+                    "data": service.get("data"),
                 }
+            if user_input["tap_action_type"] == "more-info":
+                entity = user_input["tap_action_entity"].get("tap_action_entity")
+                tap_action = {"entity": entity}
 
             config = {
                 "id": user_input["id"],
@@ -257,9 +287,10 @@ class SmartActionsOptionsFlow(OptionsFlow):
                     "priority": action.priority,
                     "users": ",".join(action.users),
                     "conditions": action.conditions,
-                    "tap_action": action.tap_action,
+                    # "tap_action": ,
                     "icon_tap_action": action.icon_tap_action,
-                },
+                }
+                | (action_to_schema(action.tap_action) or {}),
             ),
         )
 
