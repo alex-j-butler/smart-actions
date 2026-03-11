@@ -11,6 +11,17 @@
       "already_configured": "Smart Actions is already configured."
     }
   },
+  "config_subentries": {
+    "action": {
+      "title": "Smart Actions",
+      "step": {
+        "user": {
+          "title": "Add Smart Action",
+          "description": "Create a new smart action"
+        }
+      }
+    }
+  },
   "options": {
     "step": {
       "init": {
