@@ -2,22 +2,18 @@
 
 from __future__ import annotations
 
-from json import dumps
 from typing import Any
 
 import voluptuous as vol
-from dacite import Config
 from homeassistant.config_entries import (
-    HANDLERS,
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
     ConfigSubentryFlow,
-    OptionsFlow,
     SubentryFlowResult,
 )
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowHandler, FlowResult, section
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers.selector import (
     ActionSelector,
     ConditionSelector,
@@ -25,26 +21,21 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
-    TemplateSelector,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
 )
-from homeassistant.helpers.condition import async_validate_conditions_config
 
-from custom_components.smart_actions.coordinator import SmartActionsCoordinator
 from custom_components.smart_actions.helper import conditions_to_json
-from custom_components.smart_actions.model import SmartAction
 
 from .const import DOMAIN
 
 
-def action_to_schema(action: dict[str, Any] | None):
-    schema = {}
-    if action is None:
+def action_to_schema(action: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not action or not action.get("action"):
         return None
     if action["action"] == "perform-action":
-        schema = {
+        return {
             "tap_action_type": "perform-action",
             "tap_action_service": {
                 "tap_action_service": [
@@ -56,16 +47,14 @@ def action_to_schema(action: dict[str, Any] | None):
             },
         }
     if action["action"] == "more-info":
-        schema = {
+        return {
             "tap_action_type": "more-info",
             "tap_action_entity": {"tap_action_entity": action["entity"]},
         }
+    return None
 
-    return schema
 
-
-def get_smart_action_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
-    defaults = defaults or {}
+def get_smart_action_schema() -> vol.Schema:
     return vol.Schema(
         {
             vol.Required("id"): str,
@@ -137,7 +126,6 @@ class SmartActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Handle the initial step."""
-        # Only allow one instance
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
 
@@ -154,12 +142,6 @@ class SmartActionsConfigFlow(ConfigFlow, domain=DOMAIN):
             },
         )
 
-    @staticmethod
-    @callback
-    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        """Get the options flow."""
-        return SmartActionsOptionsFlow(config_entry)
-
     @classmethod
     @callback
     def async_get_supported_subentry_types(
@@ -170,262 +152,107 @@ class SmartActionsConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ActionSubentryFlow(ConfigSubentryFlow):
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Add a new smart action via UI."""
-        if user_input is not None:
-            coordinator = self.hass.data[DOMAIN]["coordinator"]
+    """Handle add/edit of a smart action as a config subentry."""
 
-            # Parse users from comma-separated string
-            users = []
-            if user_input.get("users"):
-                users = [u.strip() for u in user_input["users"].split(",") if u.strip()]
+    def _process_user_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
+        """Convert raw form input into a stored action config dict."""
+        users = []
+        if user_input.get("users"):
+            users = [u.strip() for u in user_input["users"].split(",") if u.strip()]
 
-            tap_action = {}
-            # Perform action
-            if user_input["tap_action_type"] == "perform-action":
-                service = user_input["tap_action_service"].get("tap_action_service")[0]
+        tap_action: dict[str, Any] = {}
+        action_type = user_input.get("tap_action_type")
+        if action_type == "perform-action":
+            service_list = user_input["tap_action_service"].get("tap_action_service")
+            if service_list:
+                service = service_list[0]
                 tap_action = {
                     "action": "perform-action",
                     "perform_action": service.get("action"),
                     "target": service.get("target"),
                     "data": service.get("data"),
                 }
-            if user_input["tap_action_type"] == "more-info":
-                entity = user_input["tap_action_entity"].get("tap_action_entity")
-                tap_action = {"entity": entity}
+        elif action_type == "more-info":
+            entity = user_input["tap_action_entity"].get("tap_action_entity")
+            tap_action = {"action": "more-info", "entity": entity}
 
-            print("add: ", tap_action)
+        conditions_raw = user_input.get("conditions")
+        conditions = conditions_to_json(conditions_raw) if conditions_raw else []
 
-            conditions_raw = user_input.get("conditions")
-            conditions = []
-            if conditions_raw is not None:
-                conditions = conditions_to_json(conditions_raw)
+        return {
+            "id": user_input["id"],
+            "name": user_input["name"],
+            "icon": user_input.get("icon", "mdi:lightning-bolt"),
+            "color": user_input.get("color", "primary"),
+            "description": user_input.get("description", ""),
+            "confirm": user_input.get("confirm", False),
+            "priority": user_input.get("priority", 50),
+            "users": users,
+            "conditions": conditions,
+            "tap_action": tap_action,
+            "icon_tap_action": user_input.get("icon_tap_action", {}),
+        }
 
-            config = {
-                "id": user_input["id"],
-                "name": user_input["name"],
-                "icon": user_input.get("icon", "mdi:lightning-bolt"),
-                "color": user_input.get("color", "primary"),
-                "description": user_input.get("description", ""),
-                "confirm": user_input.get("confirm", False),
-                "priority": user_input.get("priority", 50),
-                "users": users,
-                "conditions": conditions,
-                "tap_action": tap_action,
-                "icon_tap_action": user_input.get("icon_tap_action", {}),
-            }
+    def _build_suggested_values(self, action_data: dict[str, Any]) -> dict[str, Any]:
+        """
+        Build suggested form values from stored action data.
 
+        Conditions are passed as raw JSON dicts (not compiled Template objects)
+        so the ConditionSelector can display them correctly.
+        """
+        values: dict[str, Any] = {
+            "id": action_data.get("id", ""),
+            "name": action_data.get("name", ""),
+            "icon": action_data.get("icon", "mdi:lightning-bolt"),
+            "color": action_data.get("color", "primary"),
+            "description": action_data.get("description", ""),
+            "priority": action_data.get("priority", 50),
+            "users": ",".join(action_data.get("users", [])),
+            "conditions": action_data.get("conditions", []),
+            "icon_tap_action": action_data.get("icon_tap_action", {}),
+            "confirm": action_data.get("confirm", False),
+        }
+        tap_action = action_data.get("tap_action")
+        if tap_action:
+            values.update(action_to_schema(tap_action) or {})
+        return values
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Add a new smart action."""
+        if user_input is not None:
+            config = self._process_user_input(user_input)
+            coordinator = self.hass.data[DOMAIN]["coordinator"]
             await coordinator.async_add_ui_action(config)
-            return self.async_create_entry(title="", data=config)
+            return self.async_create_entry(title=config["name"], data=config)
 
         return self.async_show_form(
             step_id="user",
             data_schema=get_smart_action_schema(),
         )
 
-
-class SmartActionsOptionsFlow(OptionsFlow):
-    """Handle options for Smart Actions."""
-
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        """Initialise options flow."""
-        self._config_entry = config_entry
-
-    async def async_step_init(
+    async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Manage options."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+    ) -> SubentryFlowResult:
+        """Edit an existing smart action."""
+        subentry = self._get_reconfigure_subentry()
 
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=["add_action", "edit_action_picker", "remove_action"],
-        )
-
-    async def async_step_add_action(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Add a new smart action via UI."""
         if user_input is not None:
+            config = self._process_user_input(user_input)
             coordinator = self.hass.data[DOMAIN]["coordinator"]
-
-            # Parse users from comma-separated string
-            users = []
-            if user_input.get("users"):
-                users = [u.strip() for u in user_input["users"].split(",") if u.strip()]
-
-            tap_action = {}
-            # Perform action
-            if user_input["tap_action_type"] == "perform-action":
-                service = user_input["tap_action_service"].get("tap_action_service")[0]
-                tap_action = {
-                    "action": "perform-action",
-                    "perform_action": service.get("action"),
-                    "target": service.get("target"),
-                    "data": service.get("data"),
-                }
-            if user_input["tap_action_type"] == "more-info":
-                entity = user_input["tap_action_entity"].get("tap_action_entity")
-                tap_action = {"entity": entity}
-
-            print("add: ", tap_action)
-
-            conditions_raw = user_input.get("conditions")
-            conditions = []
-            if conditions_raw is not None:
-                conditions = conditions_to_json(conditions_raw)
-
-            config = {
-                "id": user_input["id"],
-                "name": user_input["name"],
-                "icon": user_input.get("icon", "mdi:lightning-bolt"),
-                "color": user_input.get("color", "primary"),
-                "description": user_input.get("description", ""),
-                "confirm": user_input.get("confirm", False),
-                "priority": user_input.get("priority", 50),
-                "users": users,
-                "conditions": conditions,
-                "tap_action": tap_action,
-                "icon_tap_action": user_input.get("icon_tap_action", {}),
-            }
-
-            await coordinator.async_add_ui_action(config)
-            return self.async_create_entry(title="", data=self._config_entry.options)
-
-        return self.async_show_form(
-            step_id="add_action",
-            data_schema=get_smart_action_schema(),
-        )
-
-    async def async_step_edit_action(
-        self,
-        user_input: dict[str, Any] | None = None,
-        action: SmartAction | None = None,
-    ) -> ConfigFlowResult:
-        coordinator: SmartActionsCoordinator = self.hass.data[DOMAIN]["coordinator"]
-        if user_input is not None:
-            # Parse users from comma-separated string
-            users = []
-            if user_input.get("users"):
-                users = [u.strip() for u in user_input["users"].split(",") if u.strip()]
-
-            tap_action = {}
-            # Perform action
-            if user_input["tap_action_type"] == "perform-action":
-                service = user_input["tap_action_service"].get("tap_action_service")[0]
-                tap_action = {
-                    "action": "perform-action",
-                    "perform_action": service.get("action"),
-                    "target": service.get("target"),
-                    "data": service.get("data"),
-                }
-            if user_input["tap_action_type"] == "more-info":
-                entity = user_input["tap_action_entity"].get("tap_action_entity")
-                tap_action = {"entity": entity}
-
-            conditions_raw = user_input.get("conditions")
-            conditions = []
-            if conditions_raw is not None:
-                conditions = conditions_to_json(conditions_raw)
-
-            config = {
-                "id": user_input["id"],
-                "name": user_input["name"],
-                "icon": user_input.get("icon", "mdi:lightning-bolt"),
-                "color": user_input.get("color", "primary"),
-                "description": user_input.get("description", ""),
-                "confirm": user_input.get("confirm", False),
-                "priority": user_input.get("priority", 50),
-                "users": users,
-                "conditions": conditions,
-                "tap_action": tap_action,
-                "icon_tap_action": user_input.get("icon_tap_action", {}),
-            }
-
-            await coordinator.async_update_action(
-                user_input["id"],
-                config,
+            await coordinator.async_update_action(config["id"], config)
+            return self.async_update_and_abort(
+                self._get_entry(),
+                subentry,
+                title=config["name"],
+                data=config,
             )
-            return self.async_create_entry(title="", data=self._config_entry.options)
-            # return self.async_abort(reason="na")
-
-        if action is None:
-            return self.async_abort(reason="No action selected")
-
-        conditions_object = await async_validate_conditions_config(
-            self.hass, action.conditions
-        )
 
         return self.async_show_form(
-            step_id="edit_action",
+            step_id="reconfigure",
             data_schema=self.add_suggested_values_to_schema(
                 get_smart_action_schema(),
-                {
-                    "id": action.id,
-                    "name": action.name,
-                    "icon": action.icon,
-                    "description": action.description,
-                    "priority": action.priority,
-                    "users": ",".join(action.users),
-                    "conditions": conditions_object,
-                    # "tap_action": ,
-                    "icon_tap_action": action.icon_tap_action,
-                }
-                | (action_to_schema(action.tap_action) or {}),
-            ),
-        )
-
-    async def async_step_edit_action_picker(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Edit a smart action."""
-        coordinator = self.hass.data[DOMAIN]["coordinator"]
-
-        if user_input is not None:
-            action_id = user_input["action_id"]
-            # await coordinator.async_remove_action(action_id)
-            # return self.async_create_entry(title="", data=self._config_entry.options)
-            action = coordinator.actions[action_id]
-            return await self.async_step_edit_action(action=action)
-
-        ui_actions = {aid: a.name for aid, a in coordinator.actions.items()}
-
-        if not ui_actions:
-            return self.async_abort(reason="no_actions")
-
-        return self.async_show_form(
-            step_id="edit_action_picker",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("action_id"): vol.In(ui_actions),
-                }
-            ),
-        )
-
-    async def async_step_remove_action(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Remove a smart action."""
-        coordinator = self.hass.data[DOMAIN]["coordinator"]
-
-        if user_input is not None:
-            action_id = user_input["action_id"]
-            await coordinator.async_remove_action(action_id)
-            return self.async_create_entry(title="", data=self._config_entry.options)
-
-        ui_actions = {aid: a.name for aid, a in coordinator.actions.items()}
-
-        if not ui_actions:
-            return self.async_abort(reason="no_actions")
-
-        return self.async_show_form(
-            step_id="remove_action",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("action_id"): vol.In(ui_actions),
-                }
+                self._build_suggested_values(dict(subentry.data)),
             ),
         )

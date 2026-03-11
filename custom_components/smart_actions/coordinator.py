@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import (
     async_track_time_interval,
     async_track_state_change_event,
 )
-from homeassistant.helpers.storage import Store
 from homeassistant.helpers.condition import (
     async_validate_conditions_config,
 )
@@ -22,8 +22,6 @@ from .model import SmartAction
 
 _LOGGER = logging.getLogger(__name__)
 
-STORAGE_KEY = f"{DOMAIN}.actions"
-STORAGE_VERSION = 1
 SCAN_INTERVAL = timedelta(seconds=30)
 
 
@@ -34,7 +32,6 @@ class SmartActionsCoordinator:
         """Initialise the coordinator."""
         self.hass = hass
         self._actions: dict[str, SmartAction] = {}
-        self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._listeners: list[Any] = []
         self._update_callbacks: list[Any] = []
         self._tracked_entities: set[str] = set()
@@ -65,27 +62,30 @@ class SmartActionsCoordinator:
         actions.sort(key=lambda a: a.priority)
         return actions
 
-    async def async_load(self) -> None:
-        """Load UI-defined actions from storage."""
-        stored = await self._store.async_load()
-        if stored and "actions" in stored:
-            for action_data in stored["actions"]:
-                action = SmartAction.from_config(action_data, source="ui")
-                self._actions[action.id] = action
-            _LOGGER.debug("Loaded %d UI actions from storage", len(stored["actions"]))
+    def load_action_from_config(
+        self, config: dict[str, Any], source: str = "ui"
+    ) -> SmartAction:
+        """Load an action from a config dict into the runtime dict (no persistence)."""
+        action = SmartAction.from_config(config, source=source)
+        self._actions[action.id] = action
+        return action
 
-    async def async_save(self) -> None:
-        """Save UI-defined actions to storage."""
-        ui_actions = [
-            a.to_dict()
-            | {
-                "conditions": a.conditions,
-                "action": a.action,
-            }
-            for a in self._actions.values()
-            if a.source == "ui"
-        ]
-        await self._store.async_save({"actions": ui_actions})
+    def sync_ui_actions_from_subentries(self, entry: ConfigEntry) -> None:
+        """Re-sync all UI actions from the current subentry data.
+
+        Called when subentries change (e.g. a subentry is deleted from the UI).
+        YAML actions are left untouched.
+        """
+        # Remove all current UI actions
+        for action_id in [aid for aid, a in self._actions.items() if a.source == "ui"]:
+            del self._actions[action_id]
+
+        # Re-add from subentries
+        for subentry in entry.subentries.values():
+            action = SmartAction.from_config(dict(subentry.data), source="ui")
+            self._actions[action.id] = action
+
+        self._update_entity_tracking()
 
     def add_yaml_actions(self, actions: list[dict[str, Any]]) -> None:
         """Add actions from YAML configuration."""
@@ -95,19 +95,17 @@ class SmartActionsCoordinator:
         _LOGGER.debug("Added %d YAML actions", len(actions))
 
     async def async_add_ui_action(self, config: dict[str, Any]) -> SmartAction:
-        """Add an action from the UI."""
+        """Add a UI action to the runtime dict. Persistence is handled by the subentry."""
         action = SmartAction.from_config(config, source="ui")
         self._actions[action.id] = action
-        await self.async_save()
         self._update_entity_tracking()
         await self.async_evaluate_all()
         return action
 
     async def async_remove_action(self, action_id: str) -> bool:
-        """Remove an action."""
+        """Remove an action from the runtime dict."""
         if action_id in self._actions:
             del self._actions[action_id]
-            await self.async_save()
             self._update_entity_tracking()
             self._notify_update()
             return True
@@ -116,18 +114,13 @@ class SmartActionsCoordinator:
     async def async_update_action(
         self, action_id: str, config: dict[str, Any]
     ) -> SmartAction | None:
-        """Update an existing action."""
+        """Update an existing action in the runtime dict. Persistence is handled by the subentry."""
         existing = self._actions.get(action_id)
         if not existing:
             return None
 
-        source = existing.source
-        action = SmartAction.from_config(config, source=source)
+        action = SmartAction.from_config(config, source=existing.source)
         self._actions[action_id] = action
-
-        if source == "ui":
-            await self.async_save()
-
         self._update_entity_tracking()
         await self.async_evaluate_all()
         return action
@@ -203,12 +196,10 @@ class SmartActionsCoordinator:
 
     def _update_entity_tracking(self) -> None:
         """Update which entities we track for state changes."""
-        # Unsubscribe old listeners
         for unsub in self._unsub_state_listeners:
             unsub()
         self._unsub_state_listeners.clear()
 
-        # Collect all entity_ids referenced in conditions
         entities: set[str] = set()
         for action in self._actions.values():
             entities.update(self._extract_entities(action.conditions))
@@ -234,7 +225,6 @@ class SmartActionsCoordinator:
                     entities.update(entity_id)
                 else:
                     entities.add(entity_id)
-            # Recurse into nested conditions (or/and/not)
             nested = cond.get("conditions", [])
             entities.update(self._extract_entities(nested))
         return entities
@@ -253,12 +243,9 @@ class SmartActionsCoordinator:
         changed = False
         for action in self._actions.values():
             was_active = action.active
-            conditions_object = await async_validate_conditions_config(
-                self.hass, action.conditions
-            )
             action.active = await async_evaluate_conditions(
                 self.hass,
-                conditions_object,  # pyright: ignore[reportArgumentType]
+                action.conditions,
             )
             if action.active != was_active:
                 changed = True
@@ -290,7 +277,6 @@ class SmartActionsCoordinator:
         """Reload YAML actions (remove old YAML ones, add new)."""
         yaml_ids = [a["id"] for a in actions]
 
-        # Remove old YAML actions
         to_remove = [
             aid
             for aid, a in self._actions.items()
@@ -299,8 +285,6 @@ class SmartActionsCoordinator:
         for aid in to_remove:
             del self._actions[aid]
 
-        # Add/update YAML actions
         self.add_yaml_actions(actions)
-
         self._update_entity_tracking()
         await self.async_evaluate_all()
