@@ -72,8 +72,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Smart Actions from a config entry."""
     coordinator = SmartActionsCoordinator(hass)
 
-    # Load UI actions from storage
-    await coordinator.async_load()
+    # Load UI actions from subentries (HA persists these automatically)
+    for subentry in entry.subentries.values():
+        coordinator.load_action_from_config(dict(subentry.data), source="ui")
 
     # Load YAML actions
     yaml_actions = hass.data[DOMAIN].get("yaml_config", [])
@@ -91,7 +92,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Start condition tracking
     await coordinator.async_start()
 
+    # Sync runtime state when subentries change (e.g. deletion from HA UI)
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
     return True
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Re-sync UI actions from subentries when the config entry is updated."""
+    coordinator: SmartActionsCoordinator = hass.data[DOMAIN]["coordinator"]
+    coordinator.sync_ui_actions_from_subentries(entry)
+    await coordinator.async_evaluate_all()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -154,8 +165,6 @@ def _register_services(
         action = coordinator.get_action(action_id)
         if action:
             action.enabled = enabled
-            if action.source == "ui":
-                await coordinator.async_save()
             await coordinator.async_evaluate_all()
             _LOGGER.info(
                 "Action '%s' %s", action_id, "enabled" if enabled else "disabled"
