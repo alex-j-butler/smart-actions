@@ -12,18 +12,24 @@ logger:
     custom_components.integration_blueprint: debug
 
 
-smart_actions:
-  actions:
-    # ── Bedtime lights ──
-    - id: bedtime_lights
-      name: Bedtime Lights
-      icon: mdi:bed-clock
-      color: deep-purple
-      description: Turn off downstairs lights
-      priority: 10
-      conditions:
-        - condition: state
-          entity_id: input_boolean.bool_bedtime_lights
-          state: "on"
-      action:
-        service: script.bedtime_lights
+# smart_actions:
+#   actions:
+#     # ── Bedtime lights ──
+#     - id: bedtime_lights
+#       name: Bedtime Lights
+#       icon: mdi:bed-clock
+#       color: deep-purple
+#       description: Turn off downstairs lights
+#       priority: 10
+#       conditions:
+#         - condition: state
+#           entity_id: input_boolean.bool_bedtime_lights
+#           state: "on"
+#       action:
+#         service: script.bedtime_lights
+#       tap_action:
+#         action: "call-service"
+#         service: script.bedtime_lights_tap
+#       icon_tap_action:
+#         action: "call-service"
+#         service: script.bedtime_lights_icon_tap

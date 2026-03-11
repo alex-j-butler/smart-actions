@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from json import dumps
 from typing import Any
 
 import voluptuous as vol
@@ -11,7 +12,9 @@ from homeassistant.config_entries import (
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
+    ConfigSubentryFlow,
     OptionsFlow,
+    SubentryFlowResult,
 )
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowHandler, FlowResult, section
@@ -27,8 +30,10 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+from homeassistant.helpers.condition import async_validate_conditions_config
 
 from custom_components.smart_actions.coordinator import SmartActionsCoordinator
+from custom_components.smart_actions.helper import conditions_to_json
 from custom_components.smart_actions.model import SmartAction
 
 from .const import DOMAIN
@@ -155,6 +160,71 @@ class SmartActionsConfigFlow(ConfigFlow, domain=DOMAIN):
         """Get the options flow."""
         return SmartActionsOptionsFlow(config_entry)
 
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Return subentries supported by this integration."""
+        return {"action": ActionSubentryFlow}
+
+
+class ActionSubentryFlow(ConfigSubentryFlow):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Add a new smart action via UI."""
+        if user_input is not None:
+            coordinator = self.hass.data[DOMAIN]["coordinator"]
+
+            # Parse users from comma-separated string
+            users = []
+            if user_input.get("users"):
+                users = [u.strip() for u in user_input["users"].split(",") if u.strip()]
+
+            tap_action = {}
+            # Perform action
+            if user_input["tap_action_type"] == "perform-action":
+                service = user_input["tap_action_service"].get("tap_action_service")[0]
+                tap_action = {
+                    "action": "perform-action",
+                    "perform_action": service.get("action"),
+                    "target": service.get("target"),
+                    "data": service.get("data"),
+                }
+            if user_input["tap_action_type"] == "more-info":
+                entity = user_input["tap_action_entity"].get("tap_action_entity")
+                tap_action = {"entity": entity}
+
+            print("add: ", tap_action)
+
+            conditions_raw = user_input.get("conditions")
+            conditions = []
+            if conditions_raw is not None:
+                conditions = conditions_to_json(conditions_raw)
+
+            config = {
+                "id": user_input["id"],
+                "name": user_input["name"],
+                "icon": user_input.get("icon", "mdi:lightning-bolt"),
+                "color": user_input.get("color", "primary"),
+                "description": user_input.get("description", ""),
+                "confirm": user_input.get("confirm", False),
+                "priority": user_input.get("priority", 50),
+                "users": users,
+                "conditions": conditions,
+                "tap_action": tap_action,
+                "icon_tap_action": user_input.get("icon_tap_action", {}),
+            }
+
+            await coordinator.async_add_ui_action(config)
+            return self.async_create_entry(title="", data=config)
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=get_smart_action_schema(),
+        )
+
 
 class SmartActionsOptionsFlow(OptionsFlow):
     """Handle options for Smart Actions."""
@@ -203,6 +273,11 @@ class SmartActionsOptionsFlow(OptionsFlow):
 
             print("add: ", tap_action)
 
+            conditions_raw = user_input.get("conditions")
+            conditions = []
+            if conditions_raw is not None:
+                conditions = conditions_to_json(conditions_raw)
+
             config = {
                 "id": user_input["id"],
                 "name": user_input["name"],
@@ -212,7 +287,7 @@ class SmartActionsOptionsFlow(OptionsFlow):
                 "confirm": user_input.get("confirm", False),
                 "priority": user_input.get("priority", 50),
                 "users": users,
-                "conditions": user_input.get("conditions", []),
+                "conditions": conditions,
                 "tap_action": tap_action,
                 "icon_tap_action": user_input.get("icon_tap_action", {}),
             }
@@ -251,6 +326,11 @@ class SmartActionsOptionsFlow(OptionsFlow):
                 entity = user_input["tap_action_entity"].get("tap_action_entity")
                 tap_action = {"entity": entity}
 
+            conditions_raw = user_input.get("conditions")
+            conditions = []
+            if conditions_raw is not None:
+                conditions = conditions_to_json(conditions_raw)
+
             config = {
                 "id": user_input["id"],
                 "name": user_input["name"],
@@ -260,7 +340,7 @@ class SmartActionsOptionsFlow(OptionsFlow):
                 "confirm": user_input.get("confirm", False),
                 "priority": user_input.get("priority", 50),
                 "users": users,
-                "conditions": user_input.get("conditions", []),
+                "conditions": conditions,
                 "tap_action": tap_action,
                 "icon_tap_action": user_input.get("icon_tap_action", {}),
             }
@@ -275,6 +355,10 @@ class SmartActionsOptionsFlow(OptionsFlow):
         if action is None:
             return self.async_abort(reason="No action selected")
 
+        conditions_object = await async_validate_conditions_config(
+            self.hass, action.conditions
+        )
+
         return self.async_show_form(
             step_id="edit_action",
             data_schema=self.add_suggested_values_to_schema(
@@ -286,7 +370,7 @@ class SmartActionsOptionsFlow(OptionsFlow):
                     "description": action.description,
                     "priority": action.priority,
                     "users": ",".join(action.users),
-                    "conditions": action.conditions,
+                    "conditions": conditions_object,
                     # "tap_action": ,
                     "icon_tap_action": action.icon_tap_action,
                 }

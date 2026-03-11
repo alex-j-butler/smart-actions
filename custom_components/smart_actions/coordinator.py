@@ -12,6 +12,9 @@ from homeassistant.helpers.event import (
     async_track_state_change_event,
 )
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers.condition import (
+    async_validate_conditions_config,
+)
 
 from .const import DOMAIN, EVENT_ACTION_STATE_CHANGED
 from .conditions import async_evaluate_conditions, evaluate_conditions
@@ -250,8 +253,12 @@ class SmartActionsCoordinator:
         changed = False
         for action in self._actions.values():
             was_active = action.active
-            action.active = await async_evaluate_conditions(
+            conditions_object = await async_validate_conditions_config(
                 self.hass, action.conditions
+            )
+            action.active = await async_evaluate_conditions(
+                self.hass,
+                conditions_object,  # pyright: ignore[reportArgumentType]
             )
             if action.active != was_active:
                 changed = True
