@@ -14,137 +14,126 @@
   "config_subentries": {
     "action": {
       "title": "Smart Actions",
+      "initiate_flow": {
+        "user": "Add new Smart Action",
+        "reconfigure": "Edit Smart Action"
+      },
       "step": {
         "user": {
           "title": "Add Smart Action",
-          "description": "Create a new smart action"
-        }
-      }
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Smart Actions",
-        "menu_options": {
-          "add_action": "Add a new action",
-          "edit_action_picker": "Edit an action",
-          "remove_action": "Remove an action"
-        }
-      },
-      "add_action": {
-        "title": "Add Smart Action",
-        "description": "Create a new smart action. Conditions and service calls can be configured in YAML or via the smart_actions.add_action service.",
-        "data": {
-          "id": "Action ID (unique, no spaces)",
-          "name": "Display Name",
-          "icon": "Icon (mdi:icon-name)",
-          "color": "Color",
-          "description": "Description",
-          "confirm": "Require confirmation",
-          "priority": "Priority (0-100, lower = shown first)",
-          "users": "Allowed users (comma-separated person entity IDs, empty = all)",
-          "conditions": "Condition of whether to show this smart action on the dashboard",
-          "tap_action_type": "Tap Action"
-        },
-        "data_description": {
-          "tap_action_type": "Action to run when the action is clicked on the dashboard. Configure the appropriate section below for the action you choose."
-        },
-        "sections": {
-          "tap_action_service": {
-            "name": "\"Call a service\" section",
-            "description": "Configure this section if you selected \"Call a service\" above",
-            "data": {
-              "tap_action_service": "Choose the service to run when the smart action is tapped."
+          "description": "Create a new smart action",
+          "data": {
+            "id": "Action ID (unique, no spaces)",
+            "name": "Display Name",
+            "icon": "Icon (mdi:icon-name)",
+            "color": "Color",
+            "description": "Description",
+            "confirm": "Require confirmation",
+            "priority": "Priority (0-100, lower = shown first)",
+            "users": "Allowed users (comma-separated person entity IDs, empty = all)",
+            "conditions": "Condition of whether to show this smart action on the dashboard",
+            "tap_action_type": "Tap Action"
+          },
+          "data_description": {
+            "tap_action_type": "Action to run when the action is clicked on the dashboard. Configure the appropriate section below for the action you choose."
+          },
+          "sections": {
+            "tap_action_service": {
+              "name": "\"Call a service\" section",
+              "description": "Configure this section if you selected \"Call a service\" above",
+              "data": {
+                "tap_action_service": "Choose the service to run when the smart action is tapped."
+              },
+              "data_description": {
+                "tap_action_service": "Note, this can only be configured for one service. Any additional services will be ignored."
+              }
             },
-            "data_description": {
-              "tap_action_service": "Note, this can only be configured for one service. Any additional services will be ignored."
-            }
-          },
-          "tap_action_navigate": {
-            "name": "\"Navigate\" section",
-            "description": "Configure this section if you selected \"Navigate\" above",
-            "data": {
-              "tap_action_navigation_path": "Choose the path to navigate to when the smart action is tapped."
-            }
-          },
-          "tap_action_entity": {
-            "name": "\"More info\" section",
-            "description": "Configure this section if you selected \"More info\" above",
-            "data": {
-              "tap_action_entity": "Choose the entity to show when the smart action is tapped."
-            }
-          },
-          "tap_action_url": {
-            "name": "\"Open URL\" section",
-            "description": "Configure this section if you selected \"Open URL\" above",
-            "data": {
-              "tap_action_entity": "Choose the URL to open when the smart action is tapped."
+            "tap_action_navigate": {
+              "name": "\"Navigate\" section",
+              "description": "Configure this section if you selected \"Navigate\" above",
+              "data": {
+                "tap_action_navigation_path": "Choose the path to navigate to when the smart action is tapped."
+              }
+            },
+            "tap_action_entity": {
+              "name": "\"More info\" section",
+              "description": "Configure this section if you selected \"More info\" above",
+              "data": {
+                "tap_action_entity": "Choose the entity to show when the smart action is tapped."
+              }
+            },
+            "tap_action_url": {
+              "name": "\"Open URL\" section",
+              "description": "Configure this section if you selected \"Open URL\" above",
+              "data": {
+                "tap_action_entity": "Choose the URL to open when the smart action is tapped."
+              }
             }
           }
-        }
-      },
-      "edit_action": {
-        "title": "Edit Smart Action",
-        "description": "Edit a smart action.",
-        "data": {
-          "id": "Action ID (unique, no spaces)",
-          "name": "Display Name",
-          "icon": "Icon (mdi:icon-name)",
-          "color": "Color",
-          "description": "Description",
-          "confirm": "Require confirmation",
-          "priority": "Priority (0-100, lower = shown first)",
-          "users": "Allowed users (comma-separated person entity IDs, empty = all)",
-          "conditions": "Condition of whether to show this smart action on the dashboard",
-          "tap_action_type": "Tap Action"
         },
-        "data_description": {
-          "tap_action_type": "Action to run when the action is clicked on the dashboard. Configure the appropriate section below for the action you choose."
-        },
-        "sections": {
-          "tap_action_service": {
-            "name": "\"Call a service\" section",
-            "description": "Configure this section if you selected \"Call a service\" above",
-            "data": {
-              "tap_action_service": "Choose the service to run when the smart action is tapped."
+        "reconfigure": {
+          "title": "Edit Smart Action",
+          "description": "Edit a smart action",
+          "data": {
+            "id": "Action ID (unique, no spaces)",
+            "name": "Display Name",
+            "icon": "Icon (mdi:icon-name)",
+            "color": "Color",
+            "description": "Description",
+            "confirm": "Require confirmation",
+            "priority": "Priority (0-100, lower = shown first)",
+            "users": "Allowed users (comma-separated person entity IDs, empty = all)",
+            "conditions": "Condition of whether to show this smart action on the dashboard",
+            "tap_action_type": "Tap Action"
+          },
+          "data_description": {
+            "tap_action_type": "Action to run when the action is clicked on the dashboard. Configure the appropriate section below for the action you choose."
+          },
+          "sections": {
+            "tap_action_service": {
+              "name": "\"Call a service\" section",
+              "description": "Configure this section if you selected \"Call a service\" above",
+              "data": {
+                "tap_action_service": "Choose the service to run when the smart action is tapped."
+              },
+              "data_description": {
+                "tap_action_service": "Note, this can only be configured for one service. Any additional services will be ignored."
+              }
             },
-            "data_description": {
-              "tap_action_service": "Note, this can only be configured for one service. Any additional services will be ignored."
-            }
-          },
-          "tap_action_navigate": {
-            "name": "\"Navigate\" section",
-            "description": "Configure this section if you selected \"Navigate\" above",
-            "data": {
-              "tap_action_navigation_path": "Choose the path to navigate to when the smart action is tapped."
-            }
-          },
-          "tap_action_entity": {
-            "name": "\"More info\" section",
-            "description": "Configure this section if you selected \"More info\" above",
-            "data": {
-              "tap_action_entity": "Choose the entity to show when the smart action is tapped."
-            }
-          },
-          "tap_action_url": {
-            "name": "\"Open URL\" section",
-            "description": "Configure this section if you selected \"Open URL\" above",
-            "data": {
-              "tap_action_entity": "Choose the URL to open when the smart action is tapped."
+            "tap_action_navigate": {
+              "name": "\"Navigate\" section",
+              "description": "Configure this section if you selected \"Navigate\" above",
+              "data": {
+                "tap_action_navigation_path": "Choose the path to navigate to when the smart action is tapped."
+              }
+            },
+            "tap_action_entity": {
+              "name": "\"More info\" section",
+              "description": "Configure this section if you selected \"More info\" above",
+              "data": {
+                "tap_action_entity": "Choose the entity to show when the smart action is tapped."
+              }
+            },
+            "tap_action_url": {
+              "name": "\"Open URL\" section",
+              "description": "Configure this section if you selected \"Open URL\" above",
+              "data": {
+                "tap_action_entity": "Choose the URL to open when the smart action is tapped."
+              }
             }
           }
-        }
-      },
-      "remove_action": {
-        "title": "Remove Smart Action",
-        "data": {
-          "action_id": "Action to remove"
         }
       }
     },
-    "abort": {
-      "no_actions": "No actions to remove."
+    "options": {
+      "step": {
+        "init": {
+          "title": "Smart Actions"
+        }
+      },
+      "abort": {
+        "no_actions": "No actions to remove."
+      }
     }
   }
 }
