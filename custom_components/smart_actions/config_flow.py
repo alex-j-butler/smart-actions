@@ -26,6 +26,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
+from custom_components.smart_actions.coordinator import SmartActionsCoordinator
 from custom_components.smart_actions.helper import conditions_to_json
 
 from .const import DOMAIN
@@ -57,7 +58,6 @@ def action_to_schema(action: dict[str, Any] | None) -> dict[str, Any] | None:
 def get_smart_action_schema() -> vol.Schema:
     return vol.Schema(
         {
-            vol.Required("id"): str,
             vol.Required("name"): str,
             vol.Optional("icon", default="mdi:lightning-bolt"): str,
             vol.Optional("color", default="primary"): str,
@@ -159,7 +159,9 @@ class ActionSubentryFlow(ConfigSubentryFlow):
             conditions_to_json(config["conditions"]) if config["conditions"] else []
         )
 
-    def _process_user_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
+    def _process_user_input(
+        self, user_input: dict[str, Any], action_id: str | None = None
+    ) -> dict[str, Any]:
         """Convert raw form input into a stored action config dict."""
         users = []
         if user_input.get("users"):
@@ -183,8 +185,19 @@ class ActionSubentryFlow(ConfigSubentryFlow):
 
         conditions_raw = user_input.get("conditions")
 
+        from homeassistant.helpers.entity import generate_entity_id
+
+        # Get the current list of Smart Action ID's.
+        # Used to generate a unique ID below.
+        if action_id is None:
+            coordinator: SmartActionsCoordinator = self.hass.data[DOMAIN]["coordinator"]
+            current_ids = list(coordinator.actions.keys())
+            action_id = generate_entity_id(
+                entity_id_format="{}", current_ids=current_ids, name=user_input["name"]
+            )
+
         return {
-            "id": user_input["id"],
+            "id": action_id,
             "name": user_input["name"],
             "icon": user_input.get("icon", "mdi:lightning-bolt"),
             "color": user_input.get("color", "primary"),
@@ -245,7 +258,7 @@ class ActionSubentryFlow(ConfigSubentryFlow):
         subentry = self._get_reconfigure_subentry()
 
         if user_input is not None:
-            config = self._process_user_input(user_input)
+            config = self._process_user_input(user_input, action_id=subentry.data["id"])
             coordinator = self.hass.data[DOMAIN]["coordinator"]
             await coordinator.async_update_action(config["id"], config)
             self._serialise_template_conditions(config)
