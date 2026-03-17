@@ -154,6 +154,11 @@ class SmartActionsConfigFlow(ConfigFlow, domain=DOMAIN):
 class ActionSubentryFlow(ConfigSubentryFlow):
     """Handle add/edit of a smart action as a config subentry."""
 
+    def _serialise_template_conditions(self, config: dict[str, Any]) -> None:
+        config["conditions"] = (
+            conditions_to_json(config["conditions"]) if config["conditions"] else []
+        )
+
     def _process_user_input(self, user_input: dict[str, Any]) -> dict[str, Any]:
         """Convert raw form input into a stored action config dict."""
         users = []
@@ -177,7 +182,6 @@ class ActionSubentryFlow(ConfigSubentryFlow):
             tap_action = {"action": "more-info", "entity": entity}
 
         conditions_raw = user_input.get("conditions")
-        conditions = conditions_to_json(conditions_raw) if conditions_raw else []
 
         return {
             "id": user_input["id"],
@@ -188,7 +192,7 @@ class ActionSubentryFlow(ConfigSubentryFlow):
             "confirm": user_input.get("confirm", False),
             "priority": user_input.get("priority", 50),
             "users": users,
-            "conditions": conditions,
+            "conditions": conditions_raw,
             "tap_action": tap_action,
             "icon_tap_action": user_input.get("icon_tap_action", {}),
         }
@@ -225,6 +229,8 @@ class ActionSubentryFlow(ConfigSubentryFlow):
             config = self._process_user_input(user_input)
             coordinator = self.hass.data[DOMAIN]["coordinator"]
             await coordinator.async_add_ui_action(config)
+
+            self._serialise_template_conditions(config)
             return self.async_create_entry(title=config["name"], data=config)
 
         return self.async_show_form(
@@ -242,6 +248,7 @@ class ActionSubentryFlow(ConfigSubentryFlow):
             config = self._process_user_input(user_input)
             coordinator = self.hass.data[DOMAIN]["coordinator"]
             await coordinator.async_update_action(config["id"], config)
+            self._serialise_template_conditions(config)
             return self.async_update_and_abort(
                 self._get_entry(),
                 subentry,

@@ -1,8 +1,13 @@
 """Smart Action data model."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+
+from homeassistant.core import HomeAssistant
+
+from custom_components.smart_actions.helper import conditions_from_json
 
 
 @dataclass
@@ -73,9 +78,17 @@ class SmartAction:
             return {
                 "action": "perform-action",
                 "perform_action": self.action["service"],
-                **( {"data": self.action["data"]} if self.action.get("data") else {}),
-                **( {"service_data": self.action["service_data"]} if self.action.get("service_data") else {}),
-                **( {"target": self.action["target"]} if self.action.get("target") else {}),
+                **({"data": self.action["data"]} if self.action.get("data") else {}),
+                **(
+                    {"service_data": self.action["service_data"]}
+                    if self.action.get("service_data")
+                    else {}
+                ),
+                **(
+                    {"target": self.action["target"]}
+                    if self.action.get("target")
+                    else {}
+                ),
             }
 
         # Card will fall back to smart_actions.execute
@@ -111,7 +124,9 @@ class SmartAction:
         return data
 
     @classmethod
-    def from_config(cls, config: dict[str, Any], source: str = "yaml") -> SmartAction:
+    def from_config(
+        cls, hass: HomeAssistant, config: dict[str, Any], source: str = "yaml"
+    ) -> SmartAction:
         """Create a SmartAction from a config dict."""
         return cls(
             id=config["id"],
@@ -122,7 +137,9 @@ class SmartAction:
             confirm=config.get("confirm", False),
             priority=config.get("priority", 50),
             enabled=config.get("enabled", True),
-            conditions=config.get("conditions", []),
+            conditions=conditions_from_json(
+                hass=hass, conditions=config.get("conditions", [])
+            ),
             users=config.get("users", []),
             action=config.get("action", {}),
             tap_action=config.get("tap_action"),

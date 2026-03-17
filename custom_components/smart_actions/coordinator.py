@@ -16,6 +16,8 @@ from homeassistant.helpers.condition import (
     async_validate_conditions_config,
 )
 
+from custom_components.smart_actions.helper import conditions_from_json
+
 from .const import DOMAIN, EVENT_ACTION_STATE_CHANGED
 from .conditions import async_evaluate_conditions, evaluate_conditions
 from .model import SmartAction
@@ -66,12 +68,13 @@ class SmartActionsCoordinator:
         self, config: dict[str, Any], source: str = "ui"
     ) -> SmartAction:
         """Load an action from a config dict into the runtime dict (no persistence)."""
-        action = SmartAction.from_config(config, source=source)
+        action = SmartAction.from_config(self.hass, config, source=source)
         self._actions[action.id] = action
         return action
 
     def sync_ui_actions_from_subentries(self, entry: ConfigEntry) -> None:
-        """Re-sync all UI actions from the current subentry data.
+        """
+        Re-sync all UI actions from the current subentry data.
 
         Called when subentries change (e.g. a subentry is deleted from the UI).
         YAML actions are left untouched.
@@ -82,7 +85,9 @@ class SmartActionsCoordinator:
 
         # Re-add from subentries
         for subentry in entry.subentries.values():
-            action = SmartAction.from_config(dict(subentry.data), source="ui")
+            action = SmartAction.from_config(
+                self.hass, dict(subentry.data), source="ui"
+            )
             self._actions[action.id] = action
 
         self._update_entity_tracking()
@@ -90,13 +95,13 @@ class SmartActionsCoordinator:
     def add_yaml_actions(self, actions: list[dict[str, Any]]) -> None:
         """Add actions from YAML configuration."""
         for action_config in actions:
-            action = SmartAction.from_config(action_config, source="yaml")
+            action = SmartAction.from_config(self.hass, action_config, source="yaml")
             self._actions[action.id] = action
         _LOGGER.debug("Added %d YAML actions", len(actions))
 
     async def async_add_ui_action(self, config: dict[str, Any]) -> SmartAction:
         """Add a UI action to the runtime dict. Persistence is handled by the subentry."""
-        action = SmartAction.from_config(config, source="ui")
+        action = SmartAction.from_config(self.hass, config, source="ui")
         self._actions[action.id] = action
         self._update_entity_tracking()
         await self.async_evaluate_all()
@@ -119,7 +124,7 @@ class SmartActionsCoordinator:
         if not existing:
             return None
 
-        action = SmartAction.from_config(config, source=existing.source)
+        action = SmartAction.from_config(self.hass, config, source=existing.source)
         self._actions[action_id] = action
         self._update_entity_tracking()
         await self.async_evaluate_all()
@@ -225,6 +230,26 @@ class SmartActionsCoordinator:
                     entities.update(entity_id)
                 else:
                     entities.add(entity_id)
+
+            if cond.get("condition") == "template":
+                value_template = cond.get("value_template")
+                if value_template is not None:
+                    from homeassistant.helpers.template import Template
+
+                    tpl = (
+                        value_template
+                        if isinstance(value_template, Template)
+                        else Template(value_template, self.hass)
+                    )
+                    try:
+                        render_info = tpl.async_render_to_info()
+                        entities.update(render_info.entities)
+                    except Exception:
+                        _LOGGER.debug(
+                            "Could not extract entities from template: %s",
+                            value_template,
+                        )
+
             nested = cond.get("conditions", [])
             entities.update(self._extract_entities(nested))
         return entities
