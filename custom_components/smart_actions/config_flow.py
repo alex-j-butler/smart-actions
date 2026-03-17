@@ -24,6 +24,7 @@ from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
+    IconSelector,
 )
 
 from custom_components.smart_actions.coordinator import SmartActionsCoordinator
@@ -59,7 +60,7 @@ def get_smart_action_schema() -> vol.Schema:
     return vol.Schema(
         {
             vol.Required("name"): str,
-            vol.Optional("icon", default="mdi:lightning-bolt"): str,
+            vol.Optional("icon", default="mdi:lightning-bolt"): IconSelector(),
             vol.Optional("color", default="primary"): str,
             vol.Optional("description", default=""): str,
             vol.Required("conditions"): ConditionSelector(),
